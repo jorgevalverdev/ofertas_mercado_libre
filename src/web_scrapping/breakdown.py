@@ -51,6 +51,7 @@ class Oferta:
             self.cuotas = dict_div['cuotas']
             self.cupon = dict_div['cupon']
             self.envio = dict_div['envio']
+            self.variaciones = dict_div['variaciones']
         else:
             self.pagina = None
             self.tipo_oferta = None
@@ -64,6 +65,7 @@ class Oferta:
             self.cuotas = None
             self.cupon = None
             self.envio = None
+            self.variaciones = None
 
     def _parse_div(self, div : Tag) -> dict:
         """
@@ -88,14 +90,14 @@ class Oferta:
         'descuento':None,
         'cuotas':None,
         'cupon':None,
-        'envio':None
+        'envio':None,
+        'variaciones':None
         }
         # Get the inner divs of the main div
         # div is the main div containing the offer information
         inner_divs = div.find_all('div', recursive=False)
         if inner_divs:
             # Tipo de Oferta y Marca
-            # inner_divs[1] is the div containing the offer type and brand
             span_elements = inner_divs[1].find_all('span', recursive=False)
             if span_elements:
                 for span_element in span_elements:
@@ -106,53 +108,57 @@ class Oferta:
                         dict_output['marca'] = span_element.text
                     elif 'seller'in clase:
                         dict_output['vendedor'] = span_element.text
+                    elif 'variations-text' in clase:
+                        dict_output['variaciones'] = span_element.text
+                        
             # Descripción
-            # inner_divs[1] is the div containing the description
             a_elements = inner_divs[1].find_all('a', recursive=False)
             if a_elements:
                 dict_output['descripcion'] = a_elements[0].get_text()
             
             div_elements = inner_divs[1].find_all('div', recursive=False)
             if div_elements:
-                # Calificación
-                # div_elements[0] is the div containing the rating
-                span_elements = div_elements[0].find_all('span', recursive=False)
-                if span_elements:
-                    for span_element in span_elements[0]:
-                        span_text = span_element.get_text().strip()
-                        if span_text:
-                            dict_output['calificacion'] = span_text
-                # Precio regular
-                # div_elements[1] is the div containing the regular price
-                s_elements = div_elements[1].find_all('s', recursive=False)
-                if s_elements:
-                    span_elements = s_elements[0].find_all('span', recursive=False)
-                    precio_regular = ""
-                    for span_element in span_elements:
-                        span_text = span_element.get_text().strip()
-                        if len(span_text):
-                            precio_regular += span_text
-                    dict_output['precio_regular'] = precio_regular
-                # Precio oferta y descuento
-                # div_elements[1] is the div containing the offer price and discount
-                div_elements_inner = div_elements[1].find_all('div', recursive=False)
-                if div_elements_inner:
-                    span_elements = div_elements_inner[0].find_all('span', recursive=False)
-                    if span_elements:
-                        dict_output['precio_oferta'] = span_elements[0].get_text()
-                    if len(span_elements) >=2:
-                        dict_output['descuento'] = span_elements[1].text
-                # Cuotas, cupon y envio
-                # div_elements[1] is the div containing the payment options    
-                span_elements = div_elements[1].find_all('span', recursive=False)
-                if span_elements:
-                    for span_element in span_elements:
-                        dict_output['cuotas'] = span_element.get_text()
-                if len(div_elements)>=3:
-                    dict_output['cupon'] = div_elements[2].get_text().strip()
-                if len(div_elements)>=4:
-                    dict_output['envio'] = div_elements[3].get_text().strip()
+                for div_element in div_elements:
+                    # Calificación
+                    if div_element.get('class')[0] == 'poly-component__reviews':
+                        dict_output['calificacion'] = div_element.get_text()
                     
+                    # Precio regular, precio oferta, descuento y cuotas
+                    elif div_element.get('class')[0] == 'poly-component__price':
+                        # Precio regular
+                        s_elements = div_element.find_all('s', recursive=False)
+                        if s_elements:
+                            span_elements = s_elements[0].find_all('span', recursive=False)
+                            precio_regular = ""
+                            for span_element in span_elements:
+                                span_text = span_element.get_text().strip()
+                                if len(span_text):
+                                    precio_regular += span_text
+                            dict_output['precio_regular'] = precio_regular
+                        
+                        # Precio oferta y descuento 
+                        div_elements_inner = div_element.find_all('div', recursive=False)
+                        if div_elements_inner:
+                            span_elements = div_elements_inner[0].find_all('span', recursive=False)
+                            if span_elements:
+                                dict_output['precio_oferta'] = span_elements[0].get_text()
+                            if len(span_elements) >=2:
+                                dict_output['descuento'] = span_elements[1].text
+
+                        # Cuotas
+                        span_elements = div_element.find_all('span', recursive=False)
+                        if span_elements:
+                            for span_element in span_elements:
+                                dict_output['cuotas'] = span_element.get_text()
+
+                    # Cupón
+                    elif div_element.get('class')[0] == 'poly-component__coupons':  
+                        dict_output['cupon'] = div_element.get_text().strip()
+                    
+                    # Envío
+                    elif div_element.get('class')[0] == 'poly-component__shipping':  
+                        dict_output['envio'] = div_element.get_text().strip()    
+          
         return dict_output  
 
     def to_df(self) -> pd.DataFrame:
@@ -175,7 +181,9 @@ class Oferta:
                 'descuento', 
                 'cuotas', 
                 'cupon', 
-                'envio']
+                'envio',
+                'variaciones'
+                ]
             return pd.DataFrame(columns=columns)
         else:
             return pd.DataFrame({
@@ -190,7 +198,8 @@ class Oferta:
                 'descuento':[self.descuento],
                 'cuotas':[self.cuotas],
                 'cupon':[self.cupon],
-                'envio':[self.envio]
+                'envio':[self.envio],
+                'variaciones':[self.variaciones]
             })
 
 
